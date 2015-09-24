@@ -1,0 +1,132 @@
+//metadata {"changes":4348,"simulate":59,"checkoff":36}
+// set up power supply node and logic thresholds
+.global vdd
+VDD vdd gnd 1.0v
+.options vil=0.2 vih=0.8
+
+.include "/shared/jsim/stdcell.jsim"
+.include "/shared/jsim/lab3checkoff_6.jsim"
+
+.subckt BOOL alufn[3:0] A[31:0] B[31:0] OUT[31:0]
+xbool32 mux4 A[31:0] B[31:0] alufn[0]#32 alufn[1]#32 alufn[2]#32 alufn[3]#32 OUT[31:0]
+.ends
+
+.subckt FA a b cin s cout
+//NAND2s to NAND3 for carry over
+Xnand_0 nand2 a b n1
+Xnand_1 nand2 a cin n2
+Xnand_2 nand2 b cin n3
+Xnand_3 nand3 n1 n2 n3 cout
+//XORs for S
+Xor_1 xor2 a b f
+Xor_2 xor2 f cin s
+.ends
+
+
+.subckt halfAdder XA[15:0] XB[15:0] alufn[0] S[15:0] himux
+//XFA_0 FA XA[0] XB[0] alufn[0] S[0] c[0]
+//XFA_I FA XA[14:1] XB[14:1] c[13:0] S[14:1] c[14:1]
+//X_FA_F FA XA[15] XB[15] c[14] S[15] himux
+XFA_H FA XA[15:0] XB[15:0] c[14:0] alufn[0] S[15:0] himux c[14:0]
+.ends
+
+//.subckt fullAdder XA[31:0] XB[31:0] alufn[0] S[31:0]
+
+//XFA_0 FA XA[0] XB[0] alufn[0] S[0] c[0]
+//XFA_I FA XA[30:1] XB[30:1] c[29:0] S[30:1] c[30:1]
+//X_FA_F FA XA[31] XB[31] c[30] S[31] U
+
+// rewritten below in single line
+//XFA_T FA XA[31:0] XB[31:0] c[30:0] alufn[0] S[31:0] c[31:0]
+//.ends
+
+
+.subckt NOR32 B[31:0] Z
+//Fan-in gates
+Xnor_1 nor4 B[0] B[1] B[2] B[3] A
+Xnor_2 nor4 B[4] B[5] B[6] B[7] B
+Xnor_3 nor4 B[8] B[9] B[10] B[11] C
+Xnor_4 nor4 B[12] B[13] B[14] B[15] D
+Xnor_5 nor4 B[16] B[17] B[18] B[19] E
+Xnor_6 nor4 B[20] B[21] B[22] B[23] F
+Xnor_7 nor4 B[24] B[25] B[26] B[27] G
+Xnor_8 nor4 B[28] B[29] B[30] B[31] H
+Xnor_A and4 A B C D I
+Xnor_B and4 E F G H J
+Xnor_last and2 I J Z
+.ends
+
+.subckt compV XA XB S V
+XinvA inverter XA invA
+XinvB inverter XB invB
+XinvS inverter S invS
+Xa nand3 invS XA XB a
+Xb nand3 S invA invB b
+Xf nand2 a b V
+.ends
+
+.subckt ARITH alufn[1:0] A[31:0] B[31:0] OUT[31:0] Z V N
+//XOR the B
+Xeors xor2 B[31:0] alufn[0]#32 XB[31:0]
+//fullAdder
+//Xfa fullAdder A[31:0] XB[31:0] alufn[0] OUT[31:0]
+Xfa2 halfAdder A[15:0] XB[15:0] alufn[0] OUT[15:0] himux
+Xfa3 halfAdder A[31:16] XB[31:16] gnd OUThi_0[31:16] co_0
+Xfa4 halfAdder A[31:16] XB[31:16] vdd OUThi_1[31:16] co_1
+Xhimux mux2 himux#16 OUThi_0[31:16] OUThi_1[31:16] OUT[31:16]
+
+
+Xnout buffer OUT[31] N
+Xzout NOR32 OUT[31:0] Z
+Xvout compV A[31] XB[31] OUT[31] V
+.ends
+
+.subckt SHL alufn[1:0] A[31:0] B[4:0] SL[31:0]
+Xmuxb4 mux2 B[4]#32 A[31:0] A[15:0] gnd#16 W[31:0]
+Xmuxb3 mux2 B[3]#32 W[31:0] W[23:0] gnd#8 X[31:0]
+Xmuxb2 mux2 B[2]#32 X[31:0] X[27:0] gnd#4 Y[31:0]
+Xmuxb1 mux2 B[1]#32 Y[31:0] Y[29:0] gnd#2 Z[31:0]
+Xmuxb0 mux2 B[0]#32 Z[31:0] Z[30:0] gnd SL[31:0]
+.ends
+
+.subckt SHR alufn[1:0] A[31:0] B[4:0] SR[31:0]
+Xshlinv SHL alufn[1:0] A[0:31] B[4:0] SR[0:31]
+.ends
+
+.subckt SHA alufn[1:0] A[31:0] B[4:0] SA[31:0]
+Xmuxa4 mux2 B[4]#32 A[31:0] A[31]#16 A[31:16] W[31:0]
+Xmuxa3 mux2 B[3]#32 W[31:0] A[31]#8 W[31:8] X[31:0]
+Xmuxa2 mux2 B[2]#32 X[31:0] A[31]#4 X[31:4] Y[31:0]
+Xmuxa1 mux2 B[1]#32 Y[31:0] A[31]#2 Y[31:2] Z[31:0]
+Xmuxb0 mux2 B[0]#32 Z[31:0] A[31] Z[31:1] SA[31:0]
+.ends
+
+
+.subckt SHIFT alufn[1:0] A[31:0] B[4:0] OUT[31:0]
+XSHL SHL alufn[1:0] A[31:0] B[4:0] LOUT[31:0]
+XSHR SHR alufn[1:0] A[31:0] B[4:0] ROUT[31:0]
+XSHA SHA alufn[1:0] A[31:0] B[4:0] AOUT[31:0]
+XSHIFTmux mux4 alufn[0]#32 alufn[1]#32 LOUT[31:0] ROUT[31:0] gnd#32 AOUT[31:0] OUT[31:0]
+.ends
+
+
+
+.subckt CMP alufn[3] alufn[1] Z V N OUT[31:0]
+Xlt xor2 N V LT
+Xlte or2 Z LT LTE
+Xzeros constant0 OUT[31:1]
+Xcmpmux mux4 alufn[1] alufn[3] Z LT LTE gnd OUT[0]
+.ends
+
+.subckt alu alufn[4:0] a[31:0] b[31:0] out[31:0] z v n
+/// Generate outputs from each of BOOL, SHIFT, ARITH, CMP subcircuits:
+xbool BOOL alufn[3:0] a[31:0] b[31:0] boolout[31:0]
+xshift SHIFT alufn[1:0] a[31:0] b[4:0] shiftout[31:0]
+xarith ARITH alufn[1:0] a[31:0] b[31:0] arithout[31:0] z v n
+xcmp CMP alufn[3] alufn[1] z v n cmpout[31:0]
+
+// Combine them, using three multiplexors:
+xmux1 mux2 alufn[4]#32 nonbool[31:0] boolout[31:0] out[31:0]
+xmux2 mux2 alufn[2]#32 arithshift[31:0] cmpout[31:0] nonbool[31:0]
+xmux3 mux2 alufn[3]#32 arithout[31:0] shiftout[31:0] arithshift[31:0]
+.ends

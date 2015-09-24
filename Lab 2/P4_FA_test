@@ -1,0 +1,75 @@
+//metadata {"changes":306,"simulate":3}
+// set up power supply node and logic thresholds
+.global vdd
+VDD vdd gnd 1.0v
+.options vil=0.2 vih=0.8
+
+.subckt INV a z
+NA gnd a z
+PA vdd a z
+.ends
+
+.subckt NAND2 a b z
+NA gnd a outA
+PA vdd a z
+
+NB outA b z
+PB vdd b z
+.ends
+
+.subckt NOR2 a b z
+NA gnd a z
+PA vdd a outA
+
+NB gnd b z
+PB outA b z
+.ends
+
+.subckt XOR2 a b z
+Xnor NOR2 a b f
+NF gnd f z
+PF outab f z
+
+NA outb a z
+PA vdd a outab
+
+NB gnd b outb
+PB vdd b outab
+.ends
+
+.subckt FA a b cin s cout
+Xnand_1 NAND2 a b n1
+Xnand_2 NAND2 a cin n2
+Xnand_3 NAND2 b cin n3
+
+NA gnd n1 outA
+PA vdd n1 cout
+
+NB outA n2 outB
+PB vdd n2 cout
+
+NC outB n3 cout
+PC vdd n3 cout
+
+Xor_1 XOR2 a b f
+Xor_2 XOR2 f cin s
+
+.ends
+
+
+
+// generate square waves for the input waveforms
+VB B gnd clock(0,1.0,20ns)
+VA A gnd clock(0,1.0,40ns)
+VCin Cin gnd clock(0,1.0,80ns)
+
+// make an instance of the gate to be tested --
+// assumes FA subckt expects A, B, Cin, S, Cout in that order
+Xtest FA A B Cin S Cout
+
+// run through all eight combinations of input values
+.tran 80ns
+
+// plot the results for verification.  Compare plots against
+// truth table given in the lab writeup.
+.plot B A Cin S Cout

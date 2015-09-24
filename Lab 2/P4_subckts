@@ -1,0 +1,51 @@
+//metadata {"changes":517,"simulate":12}
+// set up power supply node and logic thresholds
+.global vdd
+VDD vdd gnd 1.0v
+.options vil=0.2 vih=0.8
+
+.subckt INV a z
+NA gnd a z
+PA vdd a z
+.ends
+
+.subckt NAND2 a b z
+NA gnd a outA
+PA vdd a z
+
+NB outA b z
+PB vdd b z
+.ends
+
+.subckt NOR2 a b z
+NA gnd a z
+PA vdd a outA
+
+NB gnd b z
+PB outA b z
+.ends
+
+.subckt XOR2 a b z
+Xnor NOR2 a b f
+NF gnd f z
+PF outab f z
+
+NA outb a z
+PA vdd a outab
+
+NB gnd b outb
+PB vdd b outab
+.ends
+
+// generate square waves for the input waveforms
+Vin1 in1 gnd clock(0,1.0,20ns)
+Vin2 in2 gnd clock(0,1.0,40ns)
+
+// make an instance of the gate to be tested
+Xtest XOR2 in1 in2 out
+
+// run through all four combinations of input values
+.tran 40ns
+
+// plot the results for verification
+.plot in1 in2 out

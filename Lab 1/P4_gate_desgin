@@ -1,0 +1,26 @@
+//metadata {"changes":218,"checkoff":1,"simulate":1}
+// set up power supply node and logic thresholds
+.global vdd
+VDD vdd gnd 1v
+.options vil=0.2 vih=0.8
+
+.include "/shared/jsim/lab1checkoff.jsim"
+
+
+.subckt F A B C Z
+
+NA gnd A outA
+PA vdd A outAB
+
+NB outA B F
+PB vdd B outAB
+
+NC gnd C F
+PC outAB C F
+
+NI gnd F Z
+PI vdd F Z
+
+
+
+.ends

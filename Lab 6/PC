@@ -1,0 +1,264 @@
+//metadata {"changes":6526,"checkoff":36,"simulate":120}
+// set up power supply node and logic thresholds
+.global vdd
+VDD vdd gnd 1.0v
+.options vil=0.2 vih=0.8
+
+.include "/shared/jsim/stdcell.jsim"
+.include "Lab 6/ALU.jsim"
+
+//.include "/shared/jsim/lab6pc.jsim"  //PC test
+//.include "/shared/jsim/lab6regfile.jsim" //Reg test
+//.include "/shared/jsim/lab6ctl.jsim"	//CTL test
+//.include "/shared/jsim/lab6basicblock.jsim" //Basic test
+.include "/shared/jsim/lab6checkoff.jsim"
+
+
+//////FULL ADDER///////////
+.subckt FA_4 a b cin s cout
+Xnand_0 nand2 a b n1
+Xnand_1 nand2 a cin n2
+Xnand_2 nand2 b cin n3
+Xnand_3 nand3 n1 n2 n3 cout
+Xor_1 xor2 a b f
+Xor_2 xor2 f cin s
+.ends
+
+.subckt fullAdder_4 XA[31:0] XB[31:0] S[31:0]
+XFA_T FA_4 XA[31:0] XB[31:0] c[30:0] gnd S[31:0] c[31:0]
+.ends
+//////FULL ADDER ENDS///////
+
+////////PC//////////////
+.subckt pc clk reset pcsel_[2:0] ia[31:0] ia_add4[31:0] JT[31:0] ILLOP[31:0] Xad[31:0] adderout[31:0]
+// if reset, set pcsel to 0
+Xpcselmux mux2 reset#3 pcsel_[2:0] gnd#3 pcsel[2:0]
+
+// reset with 0s
+XresetMux mux2 reset#32 ia_add4[31:0] vdd gnd#31 resmux[31:0]
+
+
+// choose between 0 and 1
+Xmux1 mux2 pcsel[0]#32 resmux[31:0] adderout[31:0] muxouttemp1[31:0]
+// choose between JT and ILLOP
+Xmux2 mux2 pcsel[0]#32 JTcheck JT[30:2] gnd#2 ILLOP[31:0] muxouttemp2[31:0]
+
+Xmux4 mux4 pcsel[1]#32 pcsel[2]#32 muxouttemp1[31:0] muxouttemp2[31:0] Xad[31:0] muxouttemp2[31:0] muxout[31:0]
+// pc register
+XPC dreg muxout[31:0] clk#32 ia[31:0]
+// ia + 4
+XAdd4 fullAdder_4 ia[31:2] gnd#2 gnd#29 vdd gnd#2 ia_add4[31:0]
+// supervisor bit logic
+Xcheckm mux2 ia[31] gnd JT[31] JTcheck
+
+
+.ends
+//////PC ENDS///////////
+
+
+
+////REG FILE///////////////////
+.subckt regfile clk werf ra2sel ra[4:0] rb[4:0] rc[4:0]
++ wdata[31:0] radata[31:0] rbdata[31:0] wasel
+
+XBmux mux2 ra2sel#5 rb[4:0] rc[4:0] ra2mux[4:0]	// choose between Rb<15:11> or Rc<25:21>
+
+Gregfile memory
++ vdd gnd gnd  ra[4:0]     ra_read[31:0] // A read port
++ vdd gnd gnd  ra2mux[4:0] rb_read[31:0] // B read port
++ gnd clk werf wamux[4:0]     wdata[31:0] // write port
++ width=32 nlocations=31
+
+Xr31a1 and4 ra[4] ra[3] ra[2] ra[1] s
+Xr31a2 and2 ra[0] s ra_res
+Xr31a mux2 ra_res#32 ra_read[31:0] gnd#32 radata[31:0]
+
+Xr31b1 and4 ra2mux[4] ra2mux[3] ra2mux[2] ra2mux[1] z
+Xr31b2 and2 ra2mux[0] z rb_res
+Xr32b mux2 rb_res#32 rb_read[31:0] gnd#32 rbdata[31:0]
+
+Xwaselmux mux2 wasel#5 rc[4:0] XP[4:0] wamux[4:0]
+Xxp30 join vdd#4 gnd XP[4:0]
+
+.ends
+/////REG FILE ENDS/////////////
+
+/////CONTROL LOGIC////////////
+.subckt ctl reset pcsel[2:0] id[31:26] ra2sel bsel alufn[4:0] wdsel[1:0] werf moe wr wasel asel z irq
+
+Gctl memory vdd gnd gnd id[31:26]    // one read port
++ pcsel_[2:0] wasel asel ra2sel bsel alufn[4:0] wdsel[1:0] werf moe xwr
++ width=17 nlocations=64 contents=(
++ 0b01110000000000100		// opcode=0b000000
++ 0b01110000000000100		// opcode=0b000001
++ 0b01110000000000100		// opcode=0b000010
++ 0b01110000000000100		// opcode=0b000011
++ 0b01110000000000100		// opcode=0b000100
++ 0b01110000000000100		// opcode=0b000101
++ 0b01110000000000100		// opcode=0b000110
++ 0b01110000000000100		// opcode=0b000111
+
++ 0b01110000000000100		// opcode=0b001000
++ 0b01110000000000100		// opcode=0b001001
++ 0b01110000000000100		// opcode=0b001010
++ 0b01110000000000100		// opcode=0b001011
++ 0b01110000000000100		// opcode=0b001100
++ 0b01110000000000100		// opcode=0b001101
++ 0b01110000000000100		// opcode=0b001110
++ 0b01110000000000100		// opcode=0b001111
+
++ 0b01110000000000100		// opcode=0b010000
++ 0b01110000000000100		// opcode=0b010001
++ 0b01110000000000100		// opcode=0b010010
++ 0b01110000000000100		// opcode=0b010011
++ 0b01110000000000100		// opcode=0b010100
++ 0b01110000000000100		// opcode=0b010101
++ 0b01110000000000100		// opcode=0b010110
++ 0b01110000000000100		// opcode=0b010111
+
++ 0b00000010000010110		// opcode=0b011000 LD
++ 0b00000110000000001		// opcode=0b011001 ST
++ 0b01110000000000100		// opcode=0b011010
++ 0b01000000000000100		// opcode=0b011011 JMP
++ 0b11100000000000100		// opcode=0b011100 BEQ
++ 0b11000000000000100		// opcode=0b011101 BNE
++ 0b01110000000000100		// opcode=0b011110
++ 0b00001001101010110		// opcode=0b011111 LDR
+
++ 0b00000000000001100		// opcode=0b100000 ADD
++ 0b00000000000101100		// opcode=0b100001 SUB
++ 0b01110000000000100		// opcode=0b100010 MUL
++ 0b01110000000000100		// opcode=0b100011 DIV
++ 0b00000000010101100		// opcode=0b100100 CMPEQ
++ 0b00000000011101100		// opcode=0b100101 CMPLT
++ 0b00000000110101100		// opcode=0b100110 CMPLE
++ 0b01110000000000100		// opcode=0b100111
+
++ 0b00000001100001100		// opcode=0b101000 AND
++ 0b00000001111001100		// opcode=0b101001 OR
++ 0b00000001011001100		// opcode=0b101010 XOR
++ 0b00000001100101100		// opcode=0b101011 XNOR
++ 0b00000000100001100		// opcode=0b1010100 SHL
++ 0b00000000100101100		// opcode=0b101101 SHR
++ 0b00000000101101100		// opcode=0b101110 SHA
++ 0b01110000000000100		// opcode=0b101111
+
++ 0b00000010000001100		// opcode=0b110000 ADDC
++ 0b00000010000101100		// opcode=0b110001 SUBC
++ 0b01110000000000100		// opcode=0b110010 MULC
++ 0b01110000000000100		// opcode=0b110011 DIVC
++ 0b00000010010101100		// opcode=0b110100 CMPEQC
++ 0b00000010011101100		// opcode=0b110101 CMPLTC
++ 0b00000010110101100		// opcode=0b110110 CMPLEC
++ 0b01110000000000100		// opcode=0b110111
+
++ 0b00000011100001100		// opcode=0b111000 ANDC
++ 0b00000011111001100		// opcode=0b111001 ORC
++ 0b00000011011001100		// opcode=0b111010 XORC
++ 0b00000011100101100		// opcode=0b111011 XNORC
++ 0b00000010100001100		// opcode=0b111100 SHLC
++ 0b00000010100101100		// opcode=0b111101 SHRC
++ 0b00000010101101100		// opcode=0b111110 SHRAC
++ 0b01110000000000100		// opcode=0b111111
++ )
+
+// Force WR to 0 when reset = 1
+Xreset mux2 reset xwr gnd wr
+
+// if BEQ or BNE, set to Z or ~Z
+XinvZ inverter z notz
+XandB and2 pcsel_[2] pcsel_[1] andB
+XmuxB mux4 pcsel_[0]#3 andB#3 pcsel_[2:0] pcsel_[2:0] gnd#2 notz gnd#2 z pcsel[2:0]
+
+.ends
+
+////CONTROL LOGIC ENDS////////
+
+.subckt join S T
+.connect S T
+.ends
+
+
+/////BETA/////////////////////
+.subckt beta clk reset irq ia[31:0] id[31:0] ma[31:0] moe mrd[31:0] wr_ mwd[31:0]
+
+Xgetia join id[20:16] ra[4:0]
+Xgetib join id[15:11] rb[4:0]
+Xgetic join id[25:21] rc[4:0]
+
+Xpc pc clk reset pcsel[2:0] ia[31:0] ia_add4[31:0] radata[31:0] ILLOP[31:0] Xad[31:0] adderout[31:0]
+Xregfile regfile clk werf ra2sel ra[4:0] rb[4:0] rc[4:0] wdata[31:0] radata[31:0] rbdata[31:0] wasel
+Xctrl ctl reset pcsel_[2:0] id[31:26] ra2sel bsel alufn[4:0] wdsel_[1:0] werf_ moe wr_ wasel_ asel z irq
+
+
+// low order 16 bits sign extended
+Xbselmux mux2 bsel#32 rbdata[31:0] id[15]#16 id[15:0] ALUB[31:0]
+
+// choose between mrd (output of ALU) and ma (main memory)
+Xwdselmux mux4 wdsel[0]#32 wdsel[1]#32 ia_add4[31:0] ma[31:0] mrd[31:0] gnd#32 wdata[31:0]
+
+xaselmux mux2 asel#32 radata[31:0] gnd adderout[30:0] aselout[31:0]
+Xalu alu alufn[4:0] aselout[31:0] ALUB[31:0] ma[31:0] extra v n
+
+Xmwdj join mwd[31:0] rbdata[31:0] // rd2 -> mwd
+Xbuff buffer wr_ wr1_ // generate signal
+
+
+// add sinextC*4 to ia_add4, bit 31 set to 0
+Xadd FA gnd ia_add4[30:0] id[15]#14 id[15:0] gnd#2 co[30:0] gnd extra2 adderout[30:0] co[31:0]
+Xconadd join ia_add4[31] adderout[31]
+
+
+
+//Check if RA is zero -> z
+Xor or4 radata[31:24] radata[23:16] radata[15:8] radata[7:0] orout1_[7:0]
+Xor1 or4 orout1_[7:6] orout1_[5:4] orout1_[3:2] orout1_[1:0] orout2_[1:0]
+Xor2 or2 orout2_[0] orout2_[1] orout
+Xinv inverter orout z
+
+ 
+
+//set xAd and IllOp
+Xxad join vdd gnd#27 vdd gnd#3 Xad[31:0] //XAd
+XxIllop join vdd gnd#28 vdd gnd#2 ILLOP[31:0] //Illop
+
+//(IRQ set to 1 and supervisor mode is not on)
+Xinv1 inverter ia_add4[31] iasuper
+
+Xsupercheck and2 iasuper irq super
+Xsupermux1 mux2 super#3 pcsel_[2:0] vdd gnd#2 pcsel[2:0]
+Xsupermux2 mux2 super wasel_ vdd wasel
+Xsupermux3 mux2 super werf_ vdd werf
+XWDSEL mux2 super#2 wdsel_[1:0] gnd#2 wdsel[1:0]
+XWR mux2 super wr_ gnd wrs
+XWR2 mux2 reset wr_ gnd wrR
+
+
+//resolving triple output issues...
+Xmuxwr mux4 super reset wr1_ wrs wrR wrR wr
+
+
+.ends
+/////BETA ENDS////////////////
+
+//	Terminal		From Location			Description
+//	clk			input	test circuitry
+//	reset		input	test circuitry		set to 1 until rising clk, then 0 to start beta
+//	ia[31:0]	outputs	PC register			instruction address
+//	id[31:0]	inputs	test circuitry		instruction data
+//	ma[31:0]	outputs	ALU					memory data address
+//	mrd[31:0]	inputs	test circuitry		memory read data
+//	moe			output	control logic		memory read data output enable
+//	mwd[31:0]	outputs	register file		memory write data, if wr==1, will be written into ma
+//	wr			output	control logic		memory write enable, set to 1 when want to store into ma
+
+
+
+
+
+
+
+
+
+
+

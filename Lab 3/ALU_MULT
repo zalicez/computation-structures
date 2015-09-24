@@ -1,0 +1,189 @@
+//metadata {"changes":624,"simulate":15,"checkoff":13}
+// set up power supply node and logic thresholds
+.global vdd
+VDD vdd gnd 1.0v
+.options vil=0.2 vih=0.8
+
+.include "/shared/jsim/stdcell.jsim"
+//.include "/shared/jsim/lab3checkoff_6.jsim"
+//.include "/shared/jsim/lab3_test_mult.jsim"
+.include "/shared/jsim/lab3checkoff_10.jsim"
+
+.subckt BOOL alufn[3:0] A[31:0] B[31:0] OUT[31:0]
+xbool32 mux4 A[31:0] B[31:0] alufn[0]#32 alufn[1]#32 alufn[2]#32 alufn[3]#32 OUT[31:0]
+.ends
+
+.subckt FA a b cin s cout
+//NAND2s to NAND3 for carry over
+Xnand_0 nand2 a b n1
+Xnand_1 nand2 a cin n2
+Xnand_2 nand2 b cin n3
+Xnand_3 nand3 n1 n2 n3 cout
+//XORs for S
+Xor_1 xor2 a b f
+Xor_2 xor2 f cin s
+.ends
+
+.subckt fullAdder XA[31:0] XB[31:0] alufn[0] S[31:0]
+//XFA_0 FA XA[0] XB[0] alufn[0] S[0] c[0]
+//XFA_I FA XA[30:1] XB[30:1] c[29:0] S[30:1] c[30:1]
+//X_FA_F FA XA[31] XB[31] c[30] S[31] U
+
+XFA_T FA XA[31:0] XB[31:0] c[30:0] alufn[0] S[31:0] c[31:0]
+.ends
+
+
+.subckt NOR32 B[31:0] Z
+//Fan-in gates
+Xnor_1 nor4 B[0] B[1] B[2] B[3] A
+Xnor_2 nor4 B[4] B[5] B[6] B[7] B
+Xnor_3 nor4 B[8] B[9] B[10] B[11] C
+Xnor_4 nor4 B[12] B[13] B[14] B[15] D
+Xnor_5 nor4 B[16] B[17] B[18] B[19] E
+Xnor_6 nor4 B[20] B[21] B[22] B[23] F
+Xnor_7 nor4 B[24] B[25] B[26] B[27] G
+Xnor_8 nor4 B[28] B[29] B[30] B[31] H
+Xnor_A and4 A B C D I
+Xnor_B and4 E F G H J
+Xnor_last and2 I J Z
+.ends
+
+.subckt compV XA XB S V
+XinvA inverter XA invA
+XinvB inverter XB invB
+XinvS inverter S invS
+Xa nand3 invS XA XB a
+Xb nand3 S invA invB b
+Xf nand2 a b V
+.ends
+
+.subckt ARITH alufn[1:0] A[31:0] B[31:0] OUTN[31:0] Z V N
+Xmul mult alufn[1:0] A[31:0] B[31:0] OUTMUL[31:0]
+Xmux mux2 alufn[1]#32 OUT[31:0] OUTMUL[31:0] OUTN[31:0]
+//XOR the B
+Xeors xor2 B[31:0] alufn[0]#32 XB[31:0]
+//fullAdder
+Xfa fullAdder A[31:0] XB[31:0] alufn[0] OUT[31:0]
+
+Xnout buffer OUT[31] N
+Xzout NOR32 OUT[31:0] Z
+Xvout compV A[31] XB[31] OUT[31] V
+.ends
+
+.subckt SHL alufn[1:0] A[31:0] B[4:0] SL[31:0]
+Xmuxb4 mux2 B[4]#32 A[31:0] A[15:0] gnd#16 W[31:0]
+Xmuxb3 mux2 B[3]#32 W[31:0] W[23:0] gnd#8 X[31:0]
+Xmuxb2 mux2 B[2]#32 X[31:0] X[27:0] gnd#4 Y[31:0]
+Xmuxb1 mux2 B[1]#32 Y[31:0] Y[29:0] gnd#2 Z[31:0]
+Xmuxb0 mux2 B[0]#32 Z[31:0] Z[30:0] gnd SL[31:0]
+.ends
+
+.subckt SHR alufn[1:0] A[31:0] B[4:0] SR[31:0]
+Xshlinv SHL alufn[1:0] A[0:31] B[4:0] SR[0:31]
+.ends
+
+.subckt SHA alufn[1:0] A[31:0] B[4:0] SA[31:0]
+Xmuxa4 mux2 B[4]#32 A[31:0] A[31]#16 A[31:16] W[31:0]
+Xmuxa3 mux2 B[3]#32 W[31:0] A[31]#8 W[31:8] X[31:0]
+Xmuxa2 mux2 B[2]#32 X[31:0] A[31]#4 X[31:4] Y[31:0]
+Xmuxa1 mux2 B[1]#32 Y[31:0] A[31]#2 Y[31:2] Z[31:0]
+Xmuxb0 mux2 B[0]#32 Z[31:0] A[31] Z[31:1] SA[31:0]
+.ends
+
+
+.subckt SHIFT alufn[1:0] A[31:0] B[4:0] OUT[31:0]
+XSHL SHL alufn[1:0] A[31:0] B[4:0] LOUT[31:0]
+XSHR SHR alufn[1:0] A[31:0] B[4:0] ROUT[31:0]
+XSHA SHA alufn[1:0] A[31:0] B[4:0] AOUT[31:0]
+XSHIFTmux mux4 alufn[0]#32 alufn[1]#32 LOUT[31:0] ROUT[31:0] gnd#32 AOUT[31:0] OUT[31:0]
+.ends
+
+
+
+.subckt CMP alufn[3] alufn[1] Z V N OUT[31:0]
+Xlt xor2 N V LT
+Xlte or2 Z LT LTE
+Xzeros constant0 OUT[31:1]
+Xcmpmux mux4 alufn[1] alufn[3] Z LT LTE gnd OUT[0]
+.ends
+
+
+.subckt mult alufn[1:0] A[31:0] B[31:0] OUT[31:0]
+xA00 and2 A[31:0] B[0]#32 list00_[30:0] OUT[0]
+XA0 and2 A[30:0] B[1]#31 list_0_[30:0]
+XFA0 FA list00_[30:0] list_0_[30:0] co1_[29:0] gnd list1_[29:0] OUT[1] co1_[30:0]
+XA1 and2 A[29:0] B[2]#30 list_1_[29:0]
+XFA1 FA list_1_[29:0] list1_[29:0] co2_[28:0] gnd list2_[28:0] OUT[2] co2_[29:0]
+XA2 and2 A[28:0] B[3]#29 list_2_[28:0]
+XFA2 FA list_2_[28:0] list2_[28:0] co3_[27:0] gnd list3_[27:0] OUT[3] co3_[28:0]
+XA3 and2 A[27:0] B[4]#28 list_3_[27:0]
+XFA3 FA list_3_[27:0] list3_[27:0] co4_[26:0] gnd list4_[26:0] OUT[4] co4_[27:0]
+XA4 and2 A[26:0] B[5]#27 list_4_[26:0]
+XFA4 FA list_4_[26:0] list4_[26:0] co5_[25:0] gnd list5_[25:0] OUT[5] co5_[26:0]
+XA5 and2 A[25:0] B[6]#26 list_5_[25:0]
+XFA5 FA list_5_[25:0] list5_[25:0] co6_[24:0] gnd list6_[24:0] OUT[6] co6_[25:0]
+XA6 and2 A[24:0] B[7]#25 list_6_[24:0]
+XFA6 FA list_6_[24:0] list6_[24:0] co7_[23:0] gnd list7_[23:0] OUT[7] co7_[24:0]
+XA7 and2 A[23:0] B[8]#24 list_7_[23:0]
+XFA7 FA list_7_[23:0] list7_[23:0] co8_[22:0] gnd list8_[22:0] OUT[8] co8_[23:0]
+XA8 and2 A[22:0] B[9]#23 list_8_[22:0]
+XFA8 FA list_8_[22:0] list8_[22:0] co9_[21:0] gnd list9_[21:0] OUT[9] co9_[22:0]
+XA9 and2 A[21:0] B[10]#22 list_9_[21:0]
+XFA9 FA list_9_[21:0] list9_[21:0] co10_[20:0] gnd list10_[20:0] OUT[10] co10_[21:0]
+XA10 and2 A[20:0] B[11]#21 list_10_[20:0]
+XFA10 FA list_10_[20:0] list10_[20:0] co11_[19:0] gnd list11_[19:0] OUT[11] co11_[20:0]
+XA11 and2 A[19:0] B[12]#20 list_11_[19:0]
+XFA11 FA list_11_[19:0] list11_[19:0] co12_[18:0] gnd list12_[18:0] OUT[12] co12_[19:0]
+XA12 and2 A[18:0] B[13]#19 list_12_[18:0]
+XFA12 FA list_12_[18:0] list12_[18:0] co13_[17:0] gnd list13_[17:0] OUT[13] co13_[18:0]
+XA13 and2 A[17:0] B[14]#18 list_13_[17:0]
+XFA13 FA list_13_[17:0] list13_[17:0] co14_[16:0] gnd list14_[16:0] OUT[14] co14_[17:0]
+XA14 and2 A[16:0] B[15]#17 list_14_[16:0]
+XFA14 FA list_14_[16:0] list14_[16:0] co15_[15:0] gnd list15_[15:0] OUT[15] co15_[16:0]
+XA15 and2 A[15:0] B[16]#16 list_15_[15:0]
+XFA15 FA list_15_[15:0] list15_[15:0] co16_[14:0] gnd list16_[14:0] OUT[16] co16_[15:0]
+XA16 and2 A[14:0] B[17]#15 list_16_[14:0]
+XFA16 FA list_16_[14:0] list16_[14:0] co17_[13:0] gnd list17_[13:0] OUT[17] co17_[14:0]
+XA17 and2 A[13:0] B[18]#14 list_17_[13:0]
+XFA17 FA list_17_[13:0] list17_[13:0] co18_[12:0] gnd list18_[12:0] OUT[18] co18_[13:0]
+XA18 and2 A[12:0] B[19]#13 list_18_[12:0]
+XFA18 FA list_18_[12:0] list18_[12:0] co19_[11:0] gnd list19_[11:0] OUT[19] co19_[12:0]
+XA19 and2 A[11:0] B[20]#12 list_19_[11:0]
+XFA19 FA list_19_[11:0] list19_[11:0] co20_[10:0] gnd list20_[10:0] OUT[20] co20_[11:0]
+XA20 and2 A[10:0] B[21]#11 list_20_[10:0]
+XFA20 FA list_20_[10:0] list20_[10:0] co21_[9:0] gnd list21_[9:0] OUT[21] co21_[10:0]
+XA21 and2 A[9:0] B[22]#10 list_21_[9:0]
+XFA21 FA list_21_[9:0] list21_[9:0] co22_[8:0] gnd list22_[8:0] OUT[22] co22_[9:0]
+XA22 and2 A[8:0] B[23]#9 list_22_[8:0]
+XFA22 FA list_22_[8:0] list22_[8:0] co23_[7:0] gnd list23_[7:0] OUT[23] co23_[8:0]
+XA23 and2 A[7:0] B[24]#8 list_23_[7:0]
+XFA23 FA list_23_[7:0] list23_[7:0] co24_[6:0] gnd list24_[6:0] OUT[24] co24_[7:0]
+XA24 and2 A[6:0] B[25]#7 list_24_[6:0]
+XFA24 FA list_24_[6:0] list24_[6:0] co25_[5:0] gnd list25_[5:0] OUT[25] co25_[6:0]
+XA25 and2 A[5:0] B[26]#6 list_25_[5:0]
+XFA25 FA list_25_[5:0] list25_[5:0] co26_[4:0] gnd list26_[4:0] OUT[26] co26_[5:0]
+XA26 and2 A[4:0] B[27]#5 list_26_[4:0]
+XFA26 FA list_26_[4:0] list26_[4:0] co27_[3:0] gnd list27_[3:0] OUT[27] co27_[4:0]
+XA27 and2 A[3:0] B[28]#4 list_27_[3:0]
+XFA27 FA list_27_[3:0] list27_[3:0] co28_[2:0] gnd list28_[2:0] OUT[28] co28_[3:0]
+XA28 and2 A[2:0] B[29]#3 list_28_[2:0]
+XFA28 FA list_28_[2:0] list28_[2:0] co29_[1:0] gnd list29_[1:0] OUT[29] co29_[2:0]
+XA29 and2 A[1:0] B[30]#2 list_29_[1:0]
+XFA29 FA list_29_[1:0] list29_[1:0] co30_[0:0] gnd list30_[0:0] OUT[30] co30_[1:0]
+XA30 and2 A[0:0] B[31]#1 list_30_[0:0]
+XFA30 FA list_30_[0:0] list30_[0:0] gnd OUT[31] co31_[0:0]
+.ends
+
+.subckt alu alufn[4:0] a[31:0] b[31:0] out[31:0] z v n
+/// Generate outputs from each of BOOL, SHIFT, ARITH, CMP subcircuits:
+xbool BOOL alufn[3:0] a[31:0] b[31:0] boolout[31:0]
+xshift SHIFT alufn[1:0] a[31:0] b[4:0] shiftout[31:0]
+xarith ARITH alufn[1:0] a[31:0] b[31:0] arithout[31:0] z v n
+xcmp CMP alufn[3] alufn[1] z v n cmpout[31:0]
+
+// Combine them, using three multiplexors:
+xmux1 mux2 alufn[4]#32 nonbool[31:0] boolout[31:0] out[31:0]
+xmux2 mux2 alufn[2]#32 arithshift[31:0] cmpout[31:0] nonbool[31:0]
+xmux3 mux2 alufn[3]#32 arithout[31:0] shiftout[31:0] arithshift[31:0]
+.ends
+

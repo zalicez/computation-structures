@@ -1,0 +1,28 @@
+//metadata {"changes":5}
+	extract_field(r0, 20, 16, r2)	// extract ra to r1
+	MULC(r2,4,r2)					// convert to byte offset into regs array
+	extract_field(r0, 25, 21, r1)	// extract rc to r7
+	MULC(r1,4,r1)					// convert to byte offset into regs array
+	extract_field(r0, 15, 0, r6)	// extract literal field from trapped instruction
+
+	SHLC(r6,16,r6)
+	SRAC(r6,16,r6)					// sign extend literal
+	LD(r1,regs,r4)					// r8 <- regs(ra)
+	LD(r2,regs,r3)					// r9 <- regs(rc)
+	ADD(r3,r6,r5)					// r3(EA) <- reg[ra] + sext(literal)
+
+	extract_field(r5, 1, 0, r8)		// 2 LSBs of EA
+
+	CMPEQC(r8, 0b00, r9)		
+	BT(r9, then70)					// if 0b00, then MDATA[7:0]
+
+	CMPEQC(r8, 0b01, r9)
+	BT(r9, then158)					// if 0b01, then MDATA[15:8]
+
+	CMPEQC(r8, 0b10, r9)
+	BT(r9, then2316)				// if 0b10, then MDATA[23:16]
+
+	CMPEQC(r8, 0b11, r9)
+	BT(r9, then3124)				// if 0b11, then MDATA[31:24]
+	
+	

@@ -1,0 +1,74 @@
+//metadata {"changes":3}
+// set up power supply node and logic thresholds
+.global vdd
+VDD vdd gnd 1.0v
+.options vil=0.2 vih=0.8
+
+.include "/shared/jsim/lab2checkoff.jsim"
+
+.subckt INV a z
+NA gnd a z
+PA vdd a z
+.ends
+
+.subckt NAND2 a b z
+NA gnd a outA
+PA vdd a z
+
+NB outA b z
+PB vdd b z
+.ends
+
+.subckt NOR2 a b z
+NA gnd a z
+PA vdd a outA
+
+NB gnd b z
+PB outA b z
+.ends
+
+.subckt XOR2 a b z
+Xnor NOR2 a b f
+NF gnd f z
+PF outab f z
+
+NA outb a z
+PA vdd a outab
+
+NB gnd b outb
+PB vdd b outab
+.ends
+
+.subckt FA a b cin s cout
+Xnand_1 NAND2 a b n1
+Xnand_2 NAND2 a cin n2
+Xnand_3 NAND2 b cin n3
+
+NA gnd n1 outA
+PA vdd n1 cout
+
+NB outA n2 outB
+PB vdd n2 cout
+
+NC outB n3 cout
+PC vdd n3 cout
+
+Xor_1 XOR2 a b f
+Xor_2 XOR2 f cin s
+
+.ends
+
+
+
+// 3-bit ripple-carry adder
+.subckt adder3 a[2:0] b[2:0] s[3:0]
+// nodes c[1:0] are local to the subcircuit.
+// assumes FA subckt expects A, B, Cin, S, Cout in that order
+X1 FA a[0] b[0] gnd  s[0] c[0]
+X2 FA a[1] b[1] c[0] s[1] c[1]
+X3 FA a[2] b[2] c[1] s[2] s[3]
+
+// note that the three lines above could have
+// been written as a single JSim line:
+// Xall FA a[2:0] b[2:0] c[1:0] gnd s[2:0] s[3] c[1:0]
+.ends

@@ -1,0 +1,16 @@
+//metadata {"changes":50,"assemble":12,"step":372,"run":18}
+
+.include "/shared/bsim/beta.uasm"
+
+. = 0
+    LD(r31, X, r0)
+    CMPLE(r0, r31, r1)
+    BNE(r1, L1, r31)
+    ADDC(r31, 17, r2)
+    BEQ(r31, L2, r31)
+L1: SUB(r31, r0, r2)
+L2: XORC(r2, 0xFFFF, r2)
+    HALT()
+
+    . = 0x1CE8
+X:  LONG(0x87654321)
